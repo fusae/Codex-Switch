@@ -1,0 +1,306 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_NAME="codex-switch"
+STORE_DIR="${CODEX_SWITCH_HOME:-$HOME/.codex-switch}"
+ACCOUNTS_DIR="$STORE_DIR/accounts"
+BACKUPS_DIR="$STORE_DIR/backups"
+ACTIVE_FILE="$STORE_DIR/active"
+
+AUTH_FILE="$HOME/.codex/auth.json"
+CODEX_APP_DIR="$HOME/Library/Application Support/Codex"
+COOKIES_FILE="$CODEX_APP_DIR/Cookies"
+COOKIES_JOURNAL_FILE="$CODEX_APP_DIR/Cookies-journal"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  codex-switch save <name>     Save current Codex account
+  codex-switch save <name> --force
+  codex-switch add <name>      Reset auth, reopen Codex, then save after login
+  codex-switch use <name>      Switch to a saved account and restart Codex
+  codex-switch use <name> --no-restart
+  codex-switch remove <name>   Delete a saved account snapshot
+  codex-switch list            List saved accounts
+  codex-switch current         Show current account id
+  codex-switch status          Show auth and app-cookie status
+  codex-switch help            Show help
+EOF
+}
+
+die() {
+  printf '%s: %s\n' "$APP_NAME" "$*" >&2
+  exit 1
+}
+
+ensure_runtime() {
+  command -v node >/dev/null 2>&1 || die "node is required"
+}
+
+valid_name() {
+  [[ "${1:-}" =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+account_dir() {
+  printf '%s/%s\n' "$ACCOUNTS_DIR" "$1"
+}
+
+read_account_id() {
+  local file="$1"
+  node -e '
+const fs = require("fs");
+const file = process.argv[1];
+try {
+  const data = JSON.parse(fs.readFileSync(file, "utf8"));
+  console.log(data?.tokens?.account_id || "unknown");
+} catch {
+  console.log("unknown");
+}
+' "$file"
+}
+
+file_mtime() {
+  local file="$1"
+  [[ -e "$file" ]] || {
+    printf 'missing'
+    return 0
+  }
+  date -r "$file" '+%Y-%m-%d %H:%M:%S %z'
+}
+
+file_mtime_epoch() {
+  local file="$1"
+  [[ -e "$file" ]] || {
+    printf '0'
+    return 0
+  }
+  stat -f '%m' "$file"
+}
+
+require_auth() {
+  [[ -f "$AUTH_FILE" ]] || die "missing $AUTH_FILE"
+}
+
+copy_if_exists() {
+  local src="$1"
+  local dst="$2"
+  [[ -e "$src" ]] && cp -p "$src" "$dst"
+}
+
+move_if_exists() {
+  local src="$1"
+  local dst="$2"
+  [[ -e "$src" ]] && mv "$src" "$dst"
+}
+
+write_snapshot() {
+  local name="$1"
+  [[ -n "$name" ]] || die "missing account name"
+  valid_name "$name" || die "account name can only contain letters, numbers, dot, underscore, and dash"
+  require_auth
+
+  local dir
+  dir="$(account_dir "$name")"
+  mkdir -p "$dir"
+  cp -p "$AUTH_FILE" "$dir/auth.json"
+  copy_if_exists "$COOKIES_FILE" "$dir/Cookies"
+  copy_if_exists "$COOKIES_JOURNAL_FILE" "$dir/Cookies-journal"
+}
+
+save_account() {
+  local name="${1:-}"
+  local force=0
+  [[ "${2:-}" == "--force" ]] && force=1
+  local current_id
+  current_id="$(read_account_id "$AUTH_FILE")"
+
+  if [[ "$force" -eq 0 ]]; then
+    local dir existing_id existing_name
+    for dir in "$ACCOUNTS_DIR"/*; do
+      [[ -d "$dir" && -f "$dir/auth.json" ]] || continue
+      existing_name="$(basename "$dir")"
+      existing_id="$(read_account_id "$dir/auth.json")"
+      if [[ "$existing_name" != "$name" && "$existing_id" == "$current_id" ]]; then
+        die "current account_id equals saved account '$existing_name'; use --force only if this is intentional"
+      fi
+    done
+  fi
+
+  write_snapshot "$name"
+  mkdir -p "$STORE_DIR"
+  printf '%s\n' "$name" > "$ACTIVE_FILE"
+
+  printf 'saved %s (%s)\n' "$name" "$current_id"
+}
+
+backup_current() {
+  [[ -f "$AUTH_FILE" ]] || return 0
+
+  local ts dir
+  ts="$(date +%Y%m%d-%H%M%S)"
+  dir="$BACKUPS_DIR/$ts"
+  mkdir -p "$dir"
+  cp -p "$AUTH_FILE" "$dir/auth.json"
+  copy_if_exists "$COOKIES_FILE" "$dir/Cookies"
+  copy_if_exists "$COOKIES_JOURNAL_FILE" "$dir/Cookies-journal"
+}
+
+sync_active_account() {
+  [[ -f "$ACTIVE_FILE" ]] || return 0
+  local active
+  active="$(cat "$ACTIVE_FILE")"
+  [[ -n "$active" ]] || return 0
+  [[ -d "$(account_dir "$active")" ]] || return 0
+  write_snapshot "$active"
+  printf 'updated %s before switching\n' "$active"
+}
+
+restart_codex() {
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e 'tell application "Codex" to quit' >/dev/null 2>&1 || true
+    sleep 1
+  fi
+
+  if command -v open >/dev/null 2>&1; then
+    open -a Codex >/dev/null 2>&1 || printf 'open Codex manually\n' >&2
+  fi
+}
+
+quit_codex() {
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e 'tell application "Codex" to quit' >/dev/null 2>&1 || true
+    sleep 1
+  fi
+}
+
+open_codex() {
+  if command -v open >/dev/null 2>&1; then
+    open -a Codex >/dev/null 2>&1 || printf 'open Codex manually\n' >&2
+  fi
+}
+
+add_account() {
+  local name="${1:-}"
+  [[ -n "$name" ]] || die "missing account name"
+  valid_name "$name" || die "account name can only contain letters, numbers, dot, underscore, and dash"
+
+  local old_id="none"
+  [[ -f "$AUTH_FILE" ]] && old_id="$(read_account_id "$AUTH_FILE")"
+
+  local ts dir
+  ts="$(date +%Y%m%d-%H%M%S)"
+  dir="$BACKUPS_DIR/add-$name-$ts"
+  mkdir -p "$dir"
+
+  quit_codex
+  move_if_exists "$AUTH_FILE" "$dir/auth.json"
+  move_if_exists "$COOKIES_FILE" "$dir/Cookies"
+  move_if_exists "$COOKIES_JOURNAL_FILE" "$dir/Cookies-journal"
+  open_codex
+
+  printf 'login as %s in Codex, then press Enter here...' "$name"
+  read -r _
+  require_auth
+
+  local new_id
+  new_id="$(read_account_id "$AUTH_FILE")"
+  [[ "$new_id" != "unknown" ]] || die "auth.json exists but account_id is unknown"
+  [[ "$new_id" != "$old_id" ]] || die "account_id did not change; login did not switch accounts"
+
+  save_account "$name"
+}
+
+use_account() {
+  local name="${1:-}"
+  local restart=1
+  [[ -n "$name" ]] || die "missing account name"
+  valid_name "$name" || die "account name can only contain letters, numbers, dot, underscore, and dash"
+  [[ "${2:-}" == "--no-restart" ]] && restart=0
+
+  local dir
+  dir="$(account_dir "$name")"
+  [[ -f "$dir/auth.json" ]] || die "unknown account: $name"
+
+  sync_active_account
+  [[ "$restart" -eq 1 ]] && quit_codex
+  [[ "$restart" -eq 1 ]] && sleep 1
+
+  backup_current
+  mkdir -p "$(dirname "$AUTH_FILE")" "$CODEX_APP_DIR"
+  cp -p "$dir/auth.json" "$AUTH_FILE"
+  copy_if_exists "$dir/Cookies" "$COOKIES_FILE"
+  copy_if_exists "$dir/Cookies-journal" "$COOKIES_JOURNAL_FILE"
+  mkdir -p "$STORE_DIR"
+  printf '%s\n' "$name" > "$ACTIVE_FILE"
+  [[ "$restart" -eq 1 ]] && restart_codex
+
+  printf 'switched to %s (%s)\n' "$name" "$(read_account_id "$AUTH_FILE")"
+}
+
+remove_account() {
+  local name="${1:-}"
+  [[ -n "$name" ]] || die "missing account name"
+  valid_name "$name" || die "account name can only contain letters, numbers, dot, underscore, and dash"
+
+  local dir
+  dir="$(account_dir "$name")"
+  [[ -d "$dir" ]] || die "unknown account: $name"
+
+  rm -rf "$dir"
+  if [[ -f "$ACTIVE_FILE" && "$(cat "$ACTIVE_FILE")" == "$name" ]]; then
+    rm -f "$ACTIVE_FILE"
+  fi
+
+  printf 'removed %s\n' "$name"
+}
+
+list_accounts() {
+  mkdir -p "$ACCOUNTS_DIR"
+  local found=0
+  for dir in "$ACCOUNTS_DIR"/*; do
+    [[ -d "$dir" && -f "$dir/auth.json" ]] || continue
+    found=1
+    printf '%s\t%s\n' "$(basename "$dir")" "$(read_account_id "$dir/auth.json")"
+  done
+  [[ "$found" -eq 1 ]] || printf 'no saved accounts\n'
+}
+
+current_account() {
+  require_auth
+  read_account_id "$AUTH_FILE"
+}
+
+status() {
+  require_auth
+  local auth_epoch cookie_epoch active
+  auth_epoch="$(file_mtime_epoch "$AUTH_FILE")"
+  cookie_epoch="$(file_mtime_epoch "$COOKIES_FILE")"
+  active="none"
+  [[ -f "$ACTIVE_FILE" ]] && active="$(cat "$ACTIVE_FILE")"
+
+  printf 'auth_account_id: %s\n' "$(read_account_id "$AUTH_FILE")"
+  printf 'auth_file: %s\n' "$(file_mtime "$AUTH_FILE")"
+  printf 'app_cookies: %s\n' "$(file_mtime "$COOKIES_FILE")"
+  printf 'active_snapshot: %s\n' "$active"
+  if [[ "$cookie_epoch" -gt "$auth_epoch" ]]; then
+    printf 'warning: App cookies are newer than auth.json; App login may not have updated CLI auth yet\n'
+  fi
+}
+
+main() {
+  ensure_runtime
+
+  case "${1:-help}" in
+    save) shift; save_account "$@" ;;
+    add) shift; add_account "$@" ;;
+    use|switch) shift; use_account "$@" ;;
+    remove|rm|delete) shift; remove_account "$@" ;;
+    list|ls) list_accounts ;;
+    current) current_account ;;
+    status) status ;;
+    help|-h|--help) usage ;;
+    *) usage; exit 1 ;;
+  esac
+}
+
+main "$@"
