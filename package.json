@@ -1,0 +1,53 @@
+{
+  "name": "codex-switch",
+  "version": "0.2.0",
+  "description": "Save and switch between multiple Codex account login states locally.",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc && npm run copy-renderer",
+    "copy-renderer": "mkdir -p dist/renderer && cp src/renderer/* dist/renderer/",
+    "start": "npm run build && electron .",
+    "dev": "tsc && npm run copy-renderer && electron .",
+    "pack:mac": "npm run build && electron-builder --mac --arm64"
+  },
+  "build": {
+    "appId": "com.fusae.codex-switch",
+    "productName": "Codex Switch",
+    "directories": {
+      "output": "release"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.icns",
+      "extendInfo": {
+        "LSUIElement": true
+      },
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "electron": "28.3.3",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3"
+  }
+}

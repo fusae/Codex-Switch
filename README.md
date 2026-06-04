@@ -2,6 +2,32 @@
 
 快速保存和切换 Codex Desktop / Codex CLI 的账号登录态。
 
+## 顶栏 App
+
+当前仓库包含 Electron 顶栏 App，功能包括：
+
+- 顶栏常驻入口
+- 查看当前 `account_id`
+- 保存、切换、删除账号快照
+- 直接把当前已登录账号添加为快照
+- 可选清理旧登录态并重开 Codex，用于添加未登录过的新账号
+- 自动刷新 Codex usage / rate limit
+
+开发运行：
+
+```bash
+npm install
+npm start
+```
+
+打包 macOS：
+
+```bash
+npm run pack:mac
+```
+
+Usage 优先读取本地 Codex 会话日志，每 30 秒自动刷新；没有本地记录时再尝试内部接口。
+
 ## 用法
 
 ```bash

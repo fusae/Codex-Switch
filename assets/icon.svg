@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="tealGlow" cx="76%" cy="78%" r="72%">
+      <stop offset="0" stop-color="#0f9b8f"/>
+      <stop offset="0.48" stop-color="#122523"/>
+      <stop offset="1" stop-color="#07090d"/>
+    </radialGradient>
+    <linearGradient id="bgShade" x1="170" y1="132" x2="860" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="0.5" stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0b756e"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="268" y1="286" x2="794" y2="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7ffff"/>
+      <stop offset="0.45" stop-color="#bdf9ff"/>
+      <stop offset="1" stop-color="#f6ffff"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect x="96" y="96" width="832" height="832" rx="208" fill="url(#bgShade)"/>
+  <rect x="96" y="96" width="832" height="832" rx="208" fill="url(#tealGlow)" opacity="0.62"/>
+  <g filter="url(#softShadow)" fill="none" stroke="url(#arrow)" stroke-width="86" stroke-linecap="round">
+    <path d="M706 398C646 288 490 260 386 352c-42 37-67 86-75 137"/>
+    <path d="M318 634c61 110 217 138 321 46 42-37 67-86 75-137"/>
+  </g>
+  <path fill="url(#arrow)" d="M258 438h160l-80 80-80 80-80-80-80-80h160Z"/>
+  <path fill="url(#arrow)" d="M766 586H606l80-80 80-80 80 80 80 80H766Z"/>
+</svg>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex Switch</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="header">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">
+            <span class="arc top"></span>
+            <span class="arc bottom"></span>
+          </div>
+          <div>
+            <h1>Codex Switch</h1>
+            <p>Codex 多账号与额度管理</p>
+          </div>
+        </div>
+        <button id="refresh" class="icon-btn" title="刷新">↻</button>
+      </header>
+
+      <section class="status-card">
+        <div class="status-dot"></div>
+        <div>
+          <div class="label">当前登录</div>
+          <div id="status-line" class="status-line">读取中...</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>Usage</h2>
+          <button id="usage-btn" class="text-btn">刷新</button>
+        </div>
+        <div id="usage-box" class="usage-card">
+          <div class="usage-grid">
+            <div class="usage-metric">
+              <div class="usage-label">5小时剩余</div>
+              <div id="usage-primary" class="usage-value">--</div>
+              <div id="usage-primary-sub" class="usage-sub">读取中...</div>
+            </div>
+            <div class="usage-metric">
+              <div class="usage-label">7天剩余</div>
+              <div id="usage-secondary" class="usage-value">--</div>
+              <div id="usage-secondary-sub" class="usage-sub">读取中...</div>
+            </div>
+          </div>
+          <div id="usage-plan" class="usage-plan">计划 -- · Credits --</div>
+        </div>
+        <div id="usage-meta"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>账号</h2>
+          <span id="count"></span>
+        </div>
+        <div id="accounts" class="accounts"></div>
+      </section>
+
+      <footer id="message"></footer>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
