@@ -173,6 +173,17 @@ footer,
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
+.status-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.status-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -307,6 +318,10 @@ footer,
   padding: 3px 6px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.status-rename-input {
+  max-width: 180px;
 }
 
 .account-info {

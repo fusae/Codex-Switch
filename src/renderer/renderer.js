@@ -11,6 +11,7 @@ const els = {
   usageSecondarySub: document.getElementById('usage-secondary-sub'),
   usagePlan: document.getElementById('usage-plan'),
   usageMeta: document.getElementById('usage-meta'),
+  statusActions: document.getElementById('status-actions'),
   accounts: document.getElementById('accounts'),
   count: document.getElementById('count'),
   message: document.getElementById('message')
@@ -126,10 +127,7 @@ async function refreshUsage() {
 function render(state) {
   lastState = state;
   const s = state.status;
-  els.status.textContent = `${s.activeName || '未保存'} · ${s.currentAccountId}`;
-  if (s.cookiesNewerThanAuth) {
-    els.status.textContent += ' · Cookies 已更新';
-  }
+  renderCurrentStatus(state);
   const switchableAccounts = state.accounts.filter((account) => account.accountId !== s.currentAccountId);
   els.count.textContent = `${switchableAccounts.length} 个`;
   els.accounts.innerHTML = '';
@@ -148,24 +146,9 @@ function render(state) {
 
     const info = document.createElement('div');
     info.className = 'account-info';
-    let name;
-    if (editingAccount === account.name) {
-      name = document.createElement('input');
-      name.className = 'rename-input';
-      name.value = account.name;
-      name.onkeydown = (event) => {
-        if (event.key === 'Enter') commitRename(account.name, name.value);
-        if (event.key === 'Escape') cancelRename();
-      };
-      setTimeout(() => {
-        name.focus();
-        name.select();
-      }, 0);
-    } else {
-      name = document.createElement('div');
-      name.className = 'account-name';
-      name.textContent = account.name;
-    }
+    const name = document.createElement('div');
+    name.className = 'account-name';
+    name.textContent = account.name;
     const id = document.createElement('div');
     id.className = 'account-id';
     id.textContent = `${account.accountId} · ${fmtTime(account.modifiedAt)}`;
@@ -187,26 +170,60 @@ function render(state) {
     useBtn.textContent = '切换';
     useBtn.className = 'small primary';
     useBtn.onclick = () => run(() => api.switchAccount(account.name), `已切换到 ${account.name}，正在重启 Codex`);
-    const renameBtn = document.createElement('button');
-    renameBtn.textContent = editingAccount === account.name ? '保存' : '改名';
-    renameBtn.className = 'small';
-    renameBtn.onclick = () => {
-      if (editingAccount === account.name) commitRename(account.name, name.value);
-      else startRename(account.name);
-    };
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = '取消';
-    cancelBtn.className = 'small';
-    cancelBtn.onclick = cancelRename;
     const removeBtn = document.createElement('button');
     removeBtn.textContent = '删除';
     removeBtn.className = 'small danger';
     removeBtn.onclick = () => run(() => api.removeAccount(account.name), `已删除 ${account.name}`);
-    if (editingAccount === account.name) actions.append(renameBtn, cancelBtn);
-    else actions.append(useBtn, renameBtn, removeBtn);
+    actions.append(useBtn, removeBtn);
 
     row.append(info, actions);
     els.accounts.appendChild(row);
+  }
+}
+
+function renderCurrentStatus(state) {
+  const s = state.status;
+  const currentName = s.activeName;
+  els.statusActions.innerHTML = '';
+
+  if (editingAccount === currentName && currentName) {
+    const input = document.createElement('input');
+    input.className = 'rename-input status-rename-input';
+    input.value = currentName;
+    input.onkeydown = (event) => {
+      if (event.key === 'Enter') commitRename(currentName, input.value);
+      if (event.key === 'Escape') cancelRename();
+    };
+    els.status.replaceChildren(input);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = '保存';
+    saveBtn.className = 'small primary';
+    saveBtn.onclick = () => commitRename(currentName, input.value);
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.className = 'small';
+    cancelBtn.onclick = cancelRename;
+    els.statusActions.append(saveBtn, cancelBtn);
+
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+    return;
+  }
+
+  els.status.textContent = `${currentName || '未保存'} · ${s.currentAccountId}`;
+  if (s.cookiesNewerThanAuth) {
+    els.status.textContent += ' · Cookies 已更新';
+  }
+
+  if (currentName) {
+    const renameBtn = document.createElement('button');
+    renameBtn.textContent = '改名';
+    renameBtn.className = 'small';
+    renameBtn.onclick = () => startRename(currentName);
+    els.statusActions.append(renameBtn);
   }
 }
 
