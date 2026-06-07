@@ -302,6 +302,13 @@ footer,
   color: #1d1d1f;
 }
 
+.rename-input {
+  height: 24px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .account-info {
   min-width: 0;
 }

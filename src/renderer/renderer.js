@@ -41,6 +41,8 @@ async function refresh() {
 }
 
 let usageLoading = false;
+let lastState = null;
+let editingAccount = null;
 
 function getUsedPercent(bucket) {
   const value = bucket?.usedPercent ?? bucket?.used_percent;
@@ -122,6 +124,7 @@ async function refreshUsage() {
 }
 
 function render(state) {
+  lastState = state;
   const s = state.status;
   els.status.textContent = `${s.activeName || '未保存'} · ${s.currentAccountId}`;
   if (s.cookiesNewerThanAuth) {
@@ -145,9 +148,24 @@ function render(state) {
 
     const info = document.createElement('div');
     info.className = 'account-info';
-    const name = document.createElement('div');
-    name.className = 'account-name';
-    name.textContent = account.name;
+    let name;
+    if (editingAccount === account.name) {
+      name = document.createElement('input');
+      name.className = 'rename-input';
+      name.value = account.name;
+      name.onkeydown = (event) => {
+        if (event.key === 'Enter') commitRename(account.name, name.value);
+        if (event.key === 'Escape') cancelRename();
+      };
+      setTimeout(() => {
+        name.focus();
+        name.select();
+      }, 0);
+    } else {
+      name = document.createElement('div');
+      name.className = 'account-name';
+      name.textContent = account.name;
+    }
     const id = document.createElement('div');
     id.className = 'account-id';
     id.textContent = `${account.accountId} · ${fmtTime(account.modifiedAt)}`;
@@ -170,14 +188,22 @@ function render(state) {
     useBtn.className = 'small primary';
     useBtn.onclick = () => run(() => api.switchAccount(account.name), `已切换到 ${account.name}，正在重启 Codex`);
     const renameBtn = document.createElement('button');
-    renameBtn.textContent = '改名';
+    renameBtn.textContent = editingAccount === account.name ? '保存' : '改名';
     renameBtn.className = 'small';
-    renameBtn.onclick = () => renameAccount(account.name);
+    renameBtn.onclick = () => {
+      if (editingAccount === account.name) commitRename(account.name, name.value);
+      else startRename(account.name);
+    };
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.className = 'small';
+    cancelBtn.onclick = cancelRename;
     const removeBtn = document.createElement('button');
     removeBtn.textContent = '删除';
     removeBtn.className = 'small danger';
     removeBtn.onclick = () => run(() => api.removeAccount(account.name), `已删除 ${account.name}`);
-    actions.append(useBtn, renameBtn, removeBtn);
+    if (editingAccount === account.name) actions.append(renameBtn, cancelBtn);
+    else actions.append(useBtn, renameBtn, removeBtn);
 
     row.append(info, actions);
     els.accounts.appendChild(row);
@@ -195,11 +221,23 @@ async function run(fn, okMessage) {
   }
 }
 
-function renameAccount(oldName) {
-  const next = window.prompt('新的账号名', oldName);
-  if (next === null) return;
-  const cleaned = next.trim();
-  if (!cleaned || cleaned === oldName) return;
+function startRename(name) {
+  editingAccount = name;
+  if (lastState) render(lastState);
+}
+
+function cancelRename() {
+  editingAccount = null;
+  if (lastState) render(lastState);
+}
+
+function commitRename(oldName, nextName) {
+  const cleaned = String(nextName || '').trim();
+  if (!cleaned || cleaned === oldName) {
+    cancelRename();
+    return;
+  }
+  editingAccount = null;
   run(() => api.renameAccount(oldName, cleaned), `已改名为 ${cleaned}`);
 }
 
